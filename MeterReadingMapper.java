@@ -158,7 +158,7 @@ public class MeterReadingMapper extends Mapper<LongWritable, Text, Text, Text> {
 		Element firstChildElement = (Element) firstChild1Node;
 		XmlDomParser.getAllAttributes(firstChildElement, map);
 
-		String readingType = getReadingType(map, node.getNodeName());
+		String readingType = getIntervalReadingType(map, node.getNodeName());
 		map.put("READINGTYPE", readingType);
 
 		ArrayList<String> rows = new ArrayList<>();
@@ -269,6 +269,17 @@ public class MeterReadingMapper extends Mapper<LongWritable, Text, Text, Text> {
 				.append(map.get("TOUBUCKET")).append(HYPHEN)
 				.append(map.get("MEASUREMENTPERIOD"));
 
+
+		return readingType.toString();
+	}
+
+	private String getIntervalReadingType(Map<String, String> map, String type){
+		StringBuilder readingType = new StringBuilder();
+		readingType
+				.append(map.get("INTERVAL")).append(HYPHEN)
+				.append(type).append(HYPHEN)
+				.append(map.get("DIRECTION")).append(HYPHEN)
+				.append(map.get("UOM"));
 
 		return readingType.toString();
 	}
