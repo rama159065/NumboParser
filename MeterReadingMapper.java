@@ -26,7 +26,7 @@ public class MeterReadingMapper extends Mapper<LongWritable, Text, Text, Text> {
 	private final String HYPHEN="-";
 	private final String  NEXT_LINE = "\n";
 	private final String METER_READINGS = "MeterReadings";
-	private final String[] mainNodes = {"ConsumptionData", "MaxDemandData", "CumulativeDemandData", "CoincidentDemandData", "PresentDemandData"};
+	private final String[] mainNodes = {"ConsumptionData", "MaxDemandData", "CumulativeDemandData", "CoincidentDemandData", "PresentDemandData","IntervalData"};
 	private List mainNodesData = Arrays.asList(mainNodes);
 
     @Override
@@ -43,6 +43,7 @@ public class MeterReadingMapper extends Mapper<LongWritable, Text, Text, Text> {
 			Map<String, StringBuilder> parentMap = new LinkedHashMap<>();
 			Map<String, String> map = new LinkedHashMap<>();
 			String row = "";
+			List<String> rows = new ArrayList<>();
 			createDefaultMap(map);
 			createDefaultParentMap(parentMap);
 
@@ -68,17 +69,19 @@ public class MeterReadingMapper extends Mapper<LongWritable, Text, Text, Text> {
 							map.put("METERNAME", XmlDomParser.getAttributeByName(meterNode, "MeterName"));
 						}
 						if(node.getNodeName().equals("ConsumptionData")){
-							row = getConsumptionData(node, map);
+							rows = getConsumptionData(node, map);
 						}else if (node.getNodeName().equals("MaxDemandData")){
-							row = getMaxDemandData(node, map);
+							rows = getMaxDemandData(node, map);
 						}else if(node.getNodeName().equals("CumulativeDemandData")){
-							row = getCumulativeDemandData(node, map);
+							rows = getCumulativeDemandData(node, map);
 						}else if(node.getNodeName().equals("CoincidentDemandData")){
-							row = getCoincidentDemandData(node, map);
+							rows = getCoincidentDemandData(node, map);
 						}else if(node.getNodeName().equals("PresentDemandData")){
-							row = getPresentDemandData(node, map);
+							rows = getPresentDemandData(node, map);
+						}else if (node.getNodeName().equals("IntervalData")){
+							rows = getInterValData(node, map, context);
 						}
-						writeDataToMap(parentMap, row, node.getNodeName());
+						writeDataToMap(parentMap, rows, node.getNodeName());
 						createDefaultMap(map);
 					}
 				}
@@ -91,6 +94,7 @@ public class MeterReadingMapper extends Mapper<LongWritable, Text, Text, Text> {
 
         } catch (Exception e) {
             System.out.println("Error in parsing the xml data");
+			e.printStackTrace();
         }
 
     }
@@ -107,9 +111,33 @@ public class MeterReadingMapper extends Mapper<LongWritable, Text, Text, Text> {
 		map.put("TIMESTAMP","");
 		map.put("ESTTIME","");
 		map.put("VALUE","");
+		map.put("INTERVAL","");
+
+		createDefaultIntervalData(map);
+
 
 		System.out.println("createDefaultMap "+ map);
 	}
+
+	public static void createDefaultIntervalData(Map<String, String> map){
+		map.put("TIMECHANGED", "");
+		map.put("CLOCKSETBACKWARD", "");
+		map.put("LONGINTERVAL", "");
+		map.put("CLOCKSETFORWARD", "");
+		map.put("PARTIALINTERVAL", "");
+		map.put("INVALIDTIME", "");
+		map.put("SKIPPEDINTERVAL","");
+		map.put("COMPLETEOUTAGE", "");
+		map.put("PULSEOVERFLOW","");
+		map.put("TESTMODE", "");
+		map.put("TAMPER", "");
+		map.put("PARTIALOUTAGE", "");
+		map.put("SUSPECTEDOUTAGE", "");
+		map.put("RESTORATION","");
+		map.put("DST", "");
+		map.put("INVALIDVALUE","");
+	}
+
 
 	public void createDefaultParentMap(Map<String, StringBuilder> parentMap){
 		parentMap.put("ConsumptionData", new StringBuilder());
@@ -117,49 +145,97 @@ public class MeterReadingMapper extends Mapper<LongWritable, Text, Text, Text> {
 		parentMap.put("CumulativeDemandData", new StringBuilder());
 		parentMap.put("CoincidentDemandData", new StringBuilder());
 		parentMap.put("PresentDemandData", new StringBuilder());
+		parentMap.put("IntervalData", new StringBuilder());
 
 		System.out.println("createDefaultParentMap "+ parentMap);
 
 	}
 
-	private String getCoincidentDemandData(Node node, Map<String, String> map) {
+	public List<String> getInterValData(Node node, Map<String, String> map, Context context){
+		String[] requiredEle = {"Reading"};
+		List<String> list = Arrays.asList(requiredEle);
+		Node firstChild1Node = XmlDomParser.getFirstChild((Element)node, "IntervalSpec");
+		Element firstChildElement = (Element) firstChild1Node;
+		XmlDomParser.getAllAttributes(firstChildElement, map);
+
+		String readingType = getReadingType(map, node.getNodeName());
+		map.put("READINGTYPE", readingType);
+
+		ArrayList<String> rows = new ArrayList<>();
+
+		List<Node> nodes = XmlDomParser.extractAllChildren((Element)node, list);
+		for (Node childNode : nodes){
+			XmlDomParser.visitRecursively(childNode, map);
+			//System.out.println("printing map recursively "+ map);
+			map.put("ESTTIME", map.get("TIMESTAMP"));
+			String row = createCSVRowWithAppnderForIntervalData(map);
+			System.out.println("pring row in recursion "+row);
+			rows.add(row);
+			createDefaultIntervalData(map);
+		}
+
+		System.out.println("Al Size is "+rows.size());
+		try {
+			context.write(new Text("IntervalData"), new Text(("ArrayList size is "+rows.size())));
+		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+
+		return rows;
+
+	}
+
+
+	private List<String> getCoincidentDemandData(Node node, Map<String, String> map) {
 		String[] requiredEle = {"CoincidentDemandSpec", "Reading"};
 		List<String> list = Arrays.asList(requiredEle);
 		collectAttributes(node, list, map);
 		String row = createCSVRowWithAppnder(map);
-		return row;
+		ArrayList<String> rows = new ArrayList<>();
+		rows.add(row);
+		return rows;
 	}
 
-	private String getPresentDemandData(Node node, Map<String, String> map) {
+	private List<String> getPresentDemandData(Node node, Map<String, String> map) {
 		String[] requiredEle = {"PresentDemandSpec", "Reading"};
 		List<String> list = Arrays.asList(requiredEle);
 		collectAttributes(node, list, map);
 		String row = createCSVRowWithAppnder(map);
-		return row;
+		ArrayList<String> rows = new ArrayList<>();
+		rows.add(row);
+		return rows;
 	}
 
-	private String getCumulativeDemandData(Node node, Map<String, String> map) {
+	private List<String> getCumulativeDemandData(Node node, Map<String, String> map) {
 		String[] requiredEle = {"CumulativeDemandSpec", "Reading"};
 		List<String> list = Arrays.asList(requiredEle);
 		collectAttributes(node, list, map);
 		String row = createCSVRowWithAppnder(map);
-		return row;
+		ArrayList<String> rows = new ArrayList<>();
+		rows.add(row);
+		return rows;
 	}
 
-	private String getMaxDemandData(Node node, Map<String, String> map) {
+	private List<String> getMaxDemandData(Node node, Map<String, String> map) {
 		String[] requiredEle = {"MaxDemandSpec", "Reading"};
 		List<String> list = Arrays.asList(requiredEle);
 		collectAttributes(node, list, map);
 		String row = createCSVRowWithAppnder(map);
-		return row;
+		ArrayList<String> rows = new ArrayList<>();
+		rows.add(row);
+		return rows;
 	}
 
-	private String getConsumptionData(Node node, Map<String, String> map) {
+	private List<String> getConsumptionData(Node node, Map<String, String> map) {
 		String[] requiredEle = {"ConsumptionSpec", "Reading"};
 		List<String> list = Arrays.asList(requiredEle);
 		collectAttributes(node, list,map);
 		String row = createCSVRowWithAppnder(map);
-		return row;
+		ArrayList<String> rows = new ArrayList<>();
+		rows.add(row);
+		return rows;
 	}
 
 	private void collectAttributes(Node node, List<String> list, Map<String, String> map) {
@@ -181,6 +257,7 @@ public class MeterReadingMapper extends Mapper<LongWritable, Text, Text, Text> {
 		System.out.println("attributes "+map);
 
 	}
+
 
 	//logic to derive the value for reading type
 	private String getReadingType(Map<String, String> map, String type){
@@ -228,18 +305,56 @@ public class MeterReadingMapper extends Mapper<LongWritable, Text, Text, Text> {
 		return sb.toString();
 	}
 
-	private void writeDataToMap(Map<String, StringBuilder> parentMap, String row, String nodeName) {
-		if(parentMap.get(nodeName) != null){
-			StringBuilder sb =parentMap.get(nodeName);
-			if(row != null && row.length() > 0)
-				sb.append(NEXT_LINE);
+	private String createCSVRowWithAppnderForIntervalData(Map<String, String> map){
+		StringBuilder sb = new StringBuilder();
+
+
+		sb.append(map.get("METERNAME")).append(SEPERATOR)
+				.append(map.get("TYPE")).append(SEPERATOR)
+				.append(map.get("UOM")).append(SEPERATOR)
+				.append(map.get("READINGTYPE")).append(SEPERATOR)
+				.append(map.get("DIRECTION")).append(SEPERATOR)
+				.append(map.get("INTERVAL")).append(SEPERATOR)
+				.append(map.get("MULTIPLIER")).append(SEPERATOR)
+				.append(map.get("TIMESTAMP")).append(SEPERATOR)
+				.append(map.get("ESTTIME")).append(SEPERATOR)
+				.append(map.get("VALUE")).append(SEPERATOR)
+				.append(map.get("TIMECHANGED")).append(SEPERATOR)
+				.append(map.get("CLOCKSETBACKWARD")).append(SEPERATOR)
+				.append(map.get("LONGINTERVAL")).append(SEPERATOR)
+				.append(map.get("CLOCKSETFORWARD")).append(SEPERATOR)
+				.append(map.get("PARTIALINTERVAL")).append(SEPERATOR)
+				.append(map.get("INVALIDTIME")).append(SEPERATOR)
+				.append(map.get("SKIPPEDINTERVAL")).append(SEPERATOR)
+				.append(map.get("COMPLETEOUTAGE")).append(SEPERATOR)
+				.append(map.get("PULSEOVERFLOW")).append(SEPERATOR)
+				.append(map.get("TESTMODE")).append(SEPERATOR)
+				.append(map.get("TAMPER")).append(SEPERATOR)
+				.append(map.get("PARTIALOUTAGE")).append(SEPERATOR)
+				.append(map.get("SUSPECTEDOUTAGE")).append(SEPERATOR)
+				.append(map.get("RESTORATION")).append(SEPERATOR)
+				.append(map.get("DST")).append(SEPERATOR)
+				.append(map.get("INVALIDVALUE")).append(SEPERATOR);
+
+
+		return sb.toString();
+	}
+
+
+	private void writeDataToMap(Map<String, StringBuilder> parentMap, List<String> rows, String nodeName){
+		for (String row : rows){
+			if(parentMap.get(nodeName) != null){
+				StringBuilder sb =parentMap.get(nodeName);
+				if(row != null && row.length() > 0)
+					sb.append(NEXT_LINE);
 				sb.append(row);
-		}else{
-			StringBuilder sb =new StringBuilder();
-			if(row != null && row.length() > 0)
-				sb.append(NEXT_LINE);
+			}else{
+				StringBuilder sb =new StringBuilder();
+				if(row != null && row.length() > 0)
+					sb.append(NEXT_LINE);
 				sb.append(row);
-			parentMap.put(nodeName,sb);
+				parentMap.put(nodeName,sb);
+			}
 		}
 	}
 

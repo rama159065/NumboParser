@@ -40,6 +40,19 @@ public class XmlDomParser {
         return nodes;
     }
 
+    public static Node getFirstChild(Element parentNode, String name){
+        System.out.println("*****************getting the first child");
+        NodeList childNodes = parentNode.getChildNodes();
+        for (int i = 0; i < childNodes.getLength(); i++) {
+            Node node = childNodes.item(i);
+            if (node.getNodeType() == Node.ELEMENT_NODE && name.equals(node.getNodeName())) {
+                return node;
+            }
+
+        }
+        return null;
+    }
+
     //utitlity mehtod to retrive the attributes for a element
     public static Map<String, String> getAllAttributes(Element element) {
         Map<String,String> allAttributes = new HashMap<String,String>();
@@ -71,7 +84,6 @@ public class XmlDomParser {
 
     public static String getAttributeByName(Element eElement, String name){
         return eElement.getAttribute(name);
-
     }
 
     public static String getAttributeByName(Node node, String name){
@@ -80,19 +92,20 @@ public class XmlDomParser {
 
     }
 
-    public static Node getFirstChild(Element element){
-       return element.getFirstChild();
-    }
 
-
-    public static void visitRecursively(Node node) {
+    public static void visitRecursively(Node node, Map<String, String> map) {
+        Element element = (Element) node;
+        getAllAttributes(element, map);
         NodeList list = node.getChildNodes();
         for (int i=0; i<list.getLength(); i++) {
-            Node childNode = list.item(i);
-            System.out.println("Found Node: " + childNode.getNodeName()
-                            + " - with value: " + childNode.getNodeValue());
-            visitRecursively(childNode);
+            if (node.getNodeType() == Node.ELEMENT_NODE){
+                Node childNode = list.item(i);
+                visitRecursively(childNode, map);
+            }
+
         }
     }
+
+
 
 }

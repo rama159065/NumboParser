@@ -56,6 +56,7 @@ public class MeterReadingDriver extends Configured implements Tool{
             MultipleOutputs.addNamedOutput(job, "CumulativeDemandData",TextOutputFormat.class,Text.class, Text.class);
             MultipleOutputs.addNamedOutput(job, "CoincidentDemandData",TextOutputFormat.class,Text.class, Text.class);
             MultipleOutputs.addNamedOutput(job, "PresentDemandData",TextOutputFormat.class,Text.class, Text.class);
+            MultipleOutputs.addNamedOutput(job, "IntervalData",TextOutputFormat.class,Text.class, Text.class);
  
             int returnValue = job.waitForCompletion(true) ? 0:1;
     		System.out.println("job.isSuccessful " + job.isSuccessful());
